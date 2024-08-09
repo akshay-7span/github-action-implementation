@@ -1,0 +1,37 @@
+name: SSH Connection
+
+on: workflow_dispatch #Trigger for the workflow, allows manual triggering
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04 #Specifies the operating system for the job
+
+    steps:
+      - name: Checkout code  #Step to checkout the code from the repository
+        uses: actions/checkout@v2
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          # This step installs JDK 17 on the runner using the 'actions/setup-java' action
+
+      - name: Build with maven #Step to build the project using maven
+        run: mvn clean install
+
+      - name: Create SSH directory #Step to create SSH directory
+        run: mkdir -p ~/.ssh
+
+      - name: Install SSH key #Step to install SSH private key for authentication
+        run: echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }} # Fetches SSH private key from secrets
+
+      - name: Add server SSH fingerprint #Step to add SSH server fingerprint to known hosts
+        run: ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Check SSH connection #Step to check SSH connection to the server
+        run: ssh -v -o StrictHostKeyChecking=no -p 22 ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} exit
+
+      - name: Upload JAR #Step to upload JAR file to the server
+        run: scp -v -P 22 -r ${{ secrets.JAR_SOURCE_PATH }} ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }}:${{ secrets.JAR_DESTINATION_PATH }}
